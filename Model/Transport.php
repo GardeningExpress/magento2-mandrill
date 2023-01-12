@@ -103,10 +103,10 @@ class Transport implements \Magento\Framework\Mail\TransportInterface
         foreach ($parts as $part) {
             switch ($part->getType()) {
                 case Mime::TYPE_HTML:
-                    $message['html'] = $part->getContent();
+                    $message['html'] = $part->getRawContent();
                     break;
                 case Mime::TYPE_TEXT:
-                    $message['text'] = $part->getContent();
+                    $message['text'] = $part->getRawContent();
                     break;
             }
         }

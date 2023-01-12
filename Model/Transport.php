@@ -11,90 +11,30 @@
 
 namespace Ebizmarts\Mandrill\Model;
 
+use Ebizmarts\Mandrill\Helper\Data;
+use Ebizmarts\Mandrill\Model\Api\Mandrill;
+use Laminas\Mail\Address\AddressInterface;
+use Laminas\Mime\Mime;
+use Magento\Framework\Exception\MailException;
+use Magento\Framework\Mail\EmailMessage;
+
 class Transport implements \Magento\Framework\Mail\TransportInterface
 {
-    /**
-     * @var \Ebizmarts\Mandrill\Model\Message
-     */
-    private $message;
 
-    /**
-     * @var Api\Mandrill
-     */
-    private $api;
-    private $helper;
+    private EmailMessage $message;
 
-    /**
-     * @param \Magento\Framework\Mail\MessageInterface $message
-     * @param \Psr\Log\LoggerInterface $logger
-     * @param \Ebizmarts\Mandrill\Helper\Data $helper
-     */
+    private Mandrill $api;
+
+    private Data $helper;
+
     public function __construct(
-        \Ebizmarts\Mandrill\Model\Message $message,
-        \Ebizmarts\Mandrill\Model\Api\Mandrill $api,
-        \Ebizmarts\Mandrill\Helper\Data $helper
+         EmailMessage $message,
+         Mandrill     $api,
+         Data         $helper
     ) {
-    
-        $this->message  = $message;
-        $this->api      = $api;
-        $this->helper   = $helper;
-    }
-    public function sendMessage()
-    {
-        try {
-            $mandrillApiInstance = $this->getMandrillApiInstance();
-
-            if ($mandrillApiInstance === null) {
-                return false;
-            }
-
-            $message = array(
-                'subject' => $this->message->getSubject(),
-                'from_name' => $this->message->getFromName(),
-                'from_email' => $this->message->getFrom(),
-            );
-            foreach ($this->message->getTo() as $to) {
-                $message['to'][] = array(
-                    'email' => $to
-                );
-            }
-            foreach ($this->message->getBcc() as $bcc) {
-                $message['to'][] = array(
-                    'email' => $bcc,
-                    'type' => 'bcc'
-                );
-            }
-            if ($att = $this->message->getAttachments()) {
-                $message['attachments'] = $att;
-            }
-            if ($headers = $this->message->getHeaders()) {
-                $message['headers'] = $headers;
-            }
-            switch ($this->message->getType()) {
-                case \Magento\Framework\Mail\MailMessageInterface::TYPE_HTML:
-                    $message['html'] = $this->message->getBody();
-                    break;
-                case \Magento\Framework\Mail\MailMessageInterface::TYPE_TEXT:
-                    $message['text'] = $this->message->getBody();
-                    break;
-            }
-            $result = $mandrillApiInstance->messages->send($message);
-            $this->processApiCallResult($result);
-        } catch(\Exception $e) {
-            $this->helper->log($e->getMessage());
-        }
-//
-//        return true;
-    }
-
-    private function processApiCallResult($result)
-    {
-        $currentResult = current($result);
-        if (array_key_exists('status', $currentResult) && $currentResult['status'] == 'rejected') {
-            throw new \Magento\Framework\Exception\MailException(
-                new \Magento\Framework\Phrase("Email sending failed: %1", [$currentResult['reject_reason']])
-            );
-        }
+        $this->message = $message;
+        $this->api = $api;
+        $this->helper = $helper;
     }
 
     /**
@@ -108,11 +48,108 @@ class Transport implements \Magento\Framework\Mail\TransportInterface
     /**
      * Get message
      *
-     * @return \Magento\Framework\Mail\MessageInterface
+     * @return EmailMessage
      * @since 100.2.0
      */
     public function getMessage()
     {
         return $this->message;
+    }
+
+    /**
+     * @throws MailException
+     */
+    public function getMessageDataArray(): array
+    {
+        if (!$from = array_first($this->message->getFrom() ?? [])) {
+            throw new MailException(__('No sender email address specified'));
+        }
+
+        /** @var AddressInterface $from */
+        $message = [
+            'subject' => $this->message->getSubject(),
+            'from_name' => $from->getName(),
+            'from_email' => $from->getEmail(),
+        ];
+
+        $message['to'] = array_map(function ($x) {
+            return [
+                'email' => $x->getEmail(),
+                'name' => $x->getName(),
+            ];
+        }, $this->message->getTo() ?? []);
+
+        foreach ($this->message->getBcc() as $bcc) {
+            $message['to'][] = [
+                'email' => $bcc->getEmail(),
+                'name' => $bcc->getName(),
+                'type' => 'bcc',
+            ];
+        }
+
+        /* $message['attachments'] = array_map(function ($x) {
+            return [
+                'type' => $mimeType,
+                'name' => $filename,
+                'content'=> base64_encode($body)
+            ];
+        }, []); // todo */
+
+        if ($headers = $this->message->getHeaders()) {
+            $message['headers'] = $headers;
+        }
+
+        $parts = $this->message->getMessageBody()->getParts();
+        foreach ($parts as $part) {
+            switch ($part->getType()) {
+                case Mime::TYPE_HTML:
+                    $message['html'] = $part->getContent();
+                    break;
+                case Mime::TYPE_TEXT:
+                    $message['text'] = $part->getContent();
+                    break;
+            }
+        }
+
+        return $message;
+    }
+
+    /**
+     * @throws MailException
+     */
+    public function processApiCallResult($result)
+    {
+        $currentResult = current($result);
+        if (array_key_exists('status', $currentResult) && $currentResult['status'] == 'rejected') {
+            throw new MailException(__("Email sending rejected: %1", [$currentResult['reject_reason']]));
+        }
+    }
+
+    /**
+     * @return void
+     *
+     * @throws MailException
+     */
+    public function sendMessage()
+    {
+        // todo skip if disabled
+
+        try {
+            $mandrillApiInstance = $this->getMandrillApiInstance();
+            if ($mandrillApiInstance === null) {
+                return;
+            }
+
+            $request = $this->getMessageDataArray();
+
+            $result = $mandrillApiInstance->messages->send($request);
+            $this->processApiCallResult($result);
+        } catch (MailException $e) {
+            $this->helper->log($e->getMessage());
+            throw $e;
+        } catch (\Exception $e) {
+            $this->helper->log($e->getMessage());
+            throw new MailException(__('Unable to send mail. Please try again later'));
+        }
     }
 }

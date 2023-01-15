@@ -120,7 +120,7 @@ class Transport implements \Magento\Framework\Mail\TransportInterface
     public function processApiCallResult($result)
     {
         $currentResult = current($result);
-        if (array_key_exists('status', $currentResult) && $currentResult['status'] == 'rejected') {
+        if (array_key_exists('status', $currentResult) && $currentResult['status'] === 'rejected') {
             throw new MailException(__("Email sending rejected: %1", [$currentResult['reject_reason']]));
         }
     }
@@ -132,7 +132,9 @@ class Transport implements \Magento\Framework\Mail\TransportInterface
      */
     public function sendMessage()
     {
-        // todo skip if disabled
+        if (!$this->helper->isMandrillEnabled()) {
+            return;
+        }
 
         try {
             $mandrillApiInstance = $this->getMandrillApiInstance();
@@ -146,7 +148,7 @@ class Transport implements \Magento\Framework\Mail\TransportInterface
             $this->processApiCallResult($result);
         } catch (MailException $e) {
             $this->helper->log($e->getMessage());
-            throw $e;
+            // throw $e;
         } catch (\Exception $e) {
             $this->helper->log($e->getMessage());
             throw new MailException(__('Unable to send mail. Please try again later'));

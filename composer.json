@@ -1,9 +1,5 @@
 {
     "name": "ebizmarts/magento2-mandrill",
-    "autoload": {
-        "psr-4": {"Ebizmarts\\Mandrill\\":""},
-        "files": ["registration.php"]
-    },
     "description": "Connect Mandrill with Magento",
     "type": "magento2-module",
     "version": "4.0.0",
@@ -26,5 +22,27 @@
     "require" : {
         "mandrill/mandrill": "1.0.*",
         "magento/framework": "103.0.*"
+    },
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "Ebizmarts\\Mandrill\\": ""
+        }
+    },
+    "repositories": {
+        "magento": {
+            "type": "composer",
+            "url": "https://repo.magento.com/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "magento/composer-dependency-version-audit-plugin": true
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5"
     }
 }

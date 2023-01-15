@@ -15,6 +15,9 @@ namespace Ebizmarts\Mandrill\Test\Unit\Model;
 use Magento\Framework\TestFramework\Unit\Helper\ObjectManager;
 use \Ebizmarts\Mandrill\Model\Transport;
 
+/**
+ * @deprecated needs an update to work with Magento 2.4 branch
+ */
 class TransportTest extends \PHPUnit\Framework\TestCase
 {
     private $mandrillApiMock;

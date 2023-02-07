@@ -61,11 +61,13 @@ class Transport implements \Magento\Framework\Mail\TransportInterface
      */
     public function getMessageDataArray(): array
     {
-        if (!$from = array_first($this->message->getFrom() ?? [])) {
+        if (empty($this->message->getFrom())) {
             throw new MailException(__('No sender email address specified'));
         }
 
         /** @var AddressInterface $from */
+        $from = current($this->message->getFrom());
+        
         $message = [
             'subject' => $this->message->getSubject(),
             'from_name' => $from->getName(),

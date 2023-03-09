@@ -67,7 +67,7 @@ class Transport implements \Magento\Framework\Mail\TransportInterface
 
         /** @var AddressInterface $from */
         $from = current($this->message->getFrom());
-        
+
         $message = [
             'subject' => $this->message->getSubject(),
             'from_name' => $from->getName(),
@@ -89,14 +89,6 @@ class Transport implements \Magento\Framework\Mail\TransportInterface
             ];
         }
 
-        /* $message['attachments'] = array_map(function ($x) {
-            return [
-                'type' => $mimeType,
-                'name' => $filename,
-                'content'=> base64_encode($body)
-            ];
-        }, []); // todo */
-
         if ($headers = $this->message->getHeaders()) {
             $message['headers'] = $headers;
         }
@@ -110,6 +102,12 @@ class Transport implements \Magento\Framework\Mail\TransportInterface
                 case Mime::TYPE_TEXT:
                     $message['text'] = $part->getRawContent();
                     break;
+                default:
+                    $message['attachments'][] = [
+                        'type' => $part->getType(),
+                        'name' => $part->getFileName(),
+                        'content' => base64_encode($part->getRawContent()),
+                    ];
             }
         }
 
